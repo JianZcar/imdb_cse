@@ -52,6 +52,16 @@ def movie_by_id(id):
             actors = cursor.fetchall()
             movie['actors'] = actors  # Add actors to the movie details
 
+            # Fetch genres for the movie
+            cursor.execute("""
+                SELECT rg.movie_genres_type
+                FROM movie_genres mg
+                JOIN ref_movie_genres rg ON mg.ref_movie_genres_movie_genres_type = rg.movie_genres_type
+                WHERE mg.movies_movie_id = %s
+            """, (id,))
+            genres = [genre['movie_genres_type'] for genre in cursor.fetchall()]
+            movie['genres'] = genres  # Add genres to the movie details
+
             connection.close()
             return jsonify({'movie': movie})
         else:
@@ -59,7 +69,7 @@ def movie_by_id(id):
             return jsonify({'error': 'Movie not found'}), 404
     except Exception as e:
         print(f"Error: {e}")
-        return "Error occurred while fetching movie, reviews, and actors", 500
+        return "Error occurred while fetching movie details", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
