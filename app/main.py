@@ -1,13 +1,10 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import pymysql
-import json
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Database connection details
 db_config = {
-    'host': '10.89.0.2',
+    'host': '10.89.0.2', #The ip address of the container
     'user': 'root',
     'password': '',
     'database': 'imdb'
@@ -24,7 +21,7 @@ def movies():
         cursor.execute("SELECT movie_id, movie_title FROM movies")
         movies = cursor.fetchall()
         connection.close()
-        return json.dumps({'movies': movies})
+        return jsonify({'movies': movies})
     except Exception as e:
         print(f"Error: {e}")
         return "Error occurred while fetching movies", 500
