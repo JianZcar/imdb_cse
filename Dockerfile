@@ -1,35 +1,44 @@
-# Use an Ubuntu base image
 FROM ubuntu:latest
 
-# Set the maintainer label
 LABEL maintainer="esteban.jianzcar@outlook.com"
 
-# Install dependencies, add deadsnakes PPA, and install multiple Python versions
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y \
-    python3.8 \
-    python3.9 \
-    python3.10 \
-    python3.11 \
-    python3.12 \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory
 WORKDIR /workspace
 
-# Configure alternatives to select Python version
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 5 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 4 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 3 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 2 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    wget \
+    llvm \
+    libncurses5-dev \
+    libncursesw5-dev \
+    xz-utils \
+    tk-dev \
+    libffi-dev \
+    liblzma-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set the default Python version (optional)
-RUN update-alternatives --config python3
+# Install pyenv
+ENV PYENV_ROOT="/root/.pyenv" \
+    PATH="/root/.pyenv/bin:/root/.pyenv/shims:/root/.pyenv/versions:$PATH"
+RUN git clone https://github.com/pyenv/pyenv.git $PYENV_ROOT \
+    && $PYENV_ROOT/plugins/python-build/install.sh \
+    && echo 'eval "$(pyenv init --path)"' >> ~/.bashrc \
+    && echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 
-# Set default command to run Python
-CMD ["python3"]
+# Install multiple Python versions
+RUN pyenv install 3.9 \
+    && pyenv install 3.10 \
+    && pyenv install 3.11 \
+    && pyenv global 3.9 3.10 3.11
 
+# Verify installation
+RUN pyenv versions
+
+# Set the default command
+CMD ["bash"]
