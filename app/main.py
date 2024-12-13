@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import pymysql
+import bcrypt
 
 app = Flask(__name__)
 
@@ -12,6 +13,44 @@ db_config = {
 
 def get_db_connection():
     return pymysql.connect(**db_config)
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        # Check if the username already exists
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            connection.close()
+            return jsonify({'error': 'Username already exists'}), 400
+
+        # Hash the password with bcrypt
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+        # Insert the new user into the database
+        cursor.execute(
+            "INSERT INTO users (username, password) VALUES (%s, %s)",
+            (username, hashed_password.decode('utf-8'))
+        )
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'User registered successfully'}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred during signup'}), 500
+
 
 @app.route('/movies')
 def movies():
