@@ -81,6 +81,8 @@ def signin():
         if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
             return jsonify({'error': 'Invalid password'}), 401
 
+        session['userid'] = user['user_id']
+        session['hashed_password'] = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         # Return a success message
         return jsonify({'message': 'Login successful', 'user_id': user['user_id'], 'is_admin': user['is_admin']}), 200
 
@@ -88,6 +90,53 @@ def signin():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while signing in'}), 500
 
+
+def authenticate(role=0, key=None, user_id=None, hashed_password=None):
+    connection = get_db_connection()
+    cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+    try:
+        # Case 1: Check for API key authentication
+        if key:
+            # Find user by API key
+            cursor.execute("SELECT user_id FROM user_keys WHERE api_key = %s", (key,))
+            user = cursor.fetchone()
+            
+            if not user:
+                return {"message": "Invalid API key", "success": False}, 401
+            
+            user_id = user['user_id']
+        
+        # Case 2: Check for user authentication using user_id and password
+        if user_id and hashed_password:
+            # Find user by user_id and check if password is correct
+            cursor.execute("SELECT password, is_admin FROM users WHERE user_id = %s", (user_id,))
+            user = cursor.fetchone()
+
+            if not user or not check_password_hash(user['password'], hashed_password):
+                return {"message": "Invalid credentials", "success": False}, 401
+
+        # Case 3: Check if user has the required role
+        cursor.execute("SELECT is_admin FROM users WHERE user_id = %s", (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            return {"message": "User not found", "success": False}, 404
+        
+        # Ensure the user has the required role (0 for reviewer, 1 for admin)
+        if role == 0 and user['is_admin'] != 0:
+            return {"message": "Access denied, reviewer role required", "success": False}, 403
+        elif role == 1 and user['is_admin'] != 1:
+            return {"message": "Access denied, admin role required", "success": False}, 403
+        
+        # Authentication successful
+        return {"message": "Authentication successful", "success": True, "user_id": user_id}, 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"message": "An error occurred during authentication", "success": False}, 500
+    finally:
+        connection.close()
 
 @app.route('/movies')
 def movies():
