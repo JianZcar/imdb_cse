@@ -41,6 +41,17 @@ def movie_by_id(id):
             cursor.execute("SELECT star_rating, review_text FROM review WHERE movie_id = %s", (id,))
             reviews = cursor.fetchall()
             movie['reviews'] = reviews  # Add reviews to the movie details
+
+            # Fetch actors for the movie
+            cursor.execute("""
+                SELECT a.actor_id, a.first_name, a.last_name
+                FROM movie_actors ma
+                JOIN actors a ON ma.actors_actor_id = a.actor_id
+                WHERE ma.movies_movie_id = %s
+            """, (id,))
+            actors = cursor.fetchall()
+            movie['actors'] = actors  # Add actors to the movie details
+
             connection.close()
             return jsonify({'movie': movie})
         else:
@@ -48,7 +59,7 @@ def movie_by_id(id):
             return jsonify({'error': 'Movie not found'}), 404
     except Exception as e:
         print(f"Error: {e}")
-        return "Error occurred while fetching movie and reviews", 500
+        return "Error occurred while fetching movie, reviews, and actors", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
