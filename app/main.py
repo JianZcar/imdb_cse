@@ -26,5 +26,22 @@ def movies():
         print(f"Error: {e}")
         return "Error occurred while fetching movies", 500
 
+@app.route('/movies/<int:id>')
+def movie_by_id(id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT * FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()  # Fetch a single record
+        connection.close()
+
+        if movie:
+            return jsonify({'movie': movie})
+        else:
+            return jsonify({'error': 'Movie not found'}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error occurred while fetching movie", 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
