@@ -31,17 +31,24 @@ def movie_by_id(id):
     try:
         connection = get_db_connection()
         cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch the movie details
         cursor.execute("SELECT * FROM movies WHERE movie_id = %s", (id,))
-        movie = cursor.fetchone()  # Fetch a single record
-        connection.close()
+        movie = cursor.fetchone()
 
         if movie:
+            # Fetch reviews for the movie
+            cursor.execute("SELECT star_rating, review_text FROM review WHERE movie_id = %s", (id,))
+            reviews = cursor.fetchall()
+            movie['reviews'] = reviews  # Add reviews to the movie details
+            connection.close()
             return jsonify({'movie': movie})
         else:
+            connection.close()
             return jsonify({'error': 'Movie not found'}), 404
     except Exception as e:
         print(f"Error: {e}")
-        return "Error occurred while fetching movie", 500
+        return "Error occurred while fetching movie and reviews", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
