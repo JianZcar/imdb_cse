@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 python_version="3.10"
-podman run -v $(pwd):/workspace:z -p 8080:8080 -p 5000:5000 --rm -ti python-multi-version bash -c "pyenv global $python_version && bash"
+podman run --network container-network --privileged -v $(pwd):/workspace:z -p 5000:5000 --rm -ti python-multi-version bash -c "pyenv global $python_version && bash"
