@@ -87,5 +87,36 @@ def actors():
         print(f"Error: {e}")
         return "Error occurred while fetching actors", 500
 
+
+@app.route('/actors/<int:id>')
+def actor_by_id(id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch actor details
+        cursor.execute("SELECT actor_id, first_name, last_name FROM actors WHERE actor_id = %s", (id,))
+        actor = cursor.fetchone()
+
+        if actor:
+            # Fetch movies the actor has appeared in
+            cursor.execute("""
+                SELECT m.movie_id, m.movie_title
+                FROM movie_actors ma
+                JOIN movies m ON ma.movies_movie_id = m.movie_id
+                WHERE ma.actors_actor_id = %s
+            """, (id,))
+            movies = cursor.fetchall()
+            actor['movies'] = movies  # Add movies to the actor details
+
+            connection.close()
+            return jsonify({'actor': actor})
+        else:
+            connection.close()
+            return jsonify({'error': 'Actor not found'}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error occurred while fetching actor details", 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
