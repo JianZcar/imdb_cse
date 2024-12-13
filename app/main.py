@@ -134,6 +134,36 @@ def genres():
         print(f"Error: {e}")
         return "Error occurred while fetching genres", 500
 
+@app.route('/genres/<string:genre>')
+def genre_by_type(genre):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the genre exists
+        cursor.execute("SELECT movie_genres_type FROM ref_movie_genres WHERE movie_genres_type = %s", (genre,))
+        genre_data = cursor.fetchone()
+
+        if genre_data:
+            # Fetch movies associated with the genre
+            cursor.execute("""
+                SELECT m.movie_id, m.movie_title
+                FROM movie_genres mg
+                JOIN movies m ON mg.movies_movie_id = m.movie_id
+                WHERE mg.ref_movie_genres_movie_genres_type = %s
+            """, (genre,))
+            movies = cursor.fetchall()
+            genre_data['movies'] = movies  # Add movies to the genre details
+
+            connection.close()
+            return jsonify({'genre': genre_data})
+        else:
+            connection.close()
+            return jsonify({'error': 'Genre not found'}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error occurred while fetching genre details", 500
+
 
 
 if __name__ == '__main__':
