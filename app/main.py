@@ -14,6 +14,8 @@ db_config = {
 def get_db_connection():
     return pymysql.connect(**db_config)
 
+# AUTH
+
 @app.route('/signup', methods=['POST'])
 def signup():
     try:
@@ -50,6 +52,41 @@ def signup():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred during signup'}), 500
+
+
+@app.route('/signin', methods=['POST'])
+def signin():
+    try:
+        # Get the user input from the request
+        username = request.json.get('username')
+        password = request.json.get('password')
+
+        # Validate that both username and password are provided
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the username exists
+        cursor.execute("SELECT user_id, password, is_admin FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        connection.close()
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Verify the password (compare the hashed password)
+        if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            return jsonify({'error': 'Invalid password'}), 401
+
+        # Return a success message
+        return jsonify({'message': 'Login successful', 'user_id': user['user_id'], 'is_admin': user['is_admin']}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while signing in'}), 500
 
 
 @app.route('/movies')
