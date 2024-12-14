@@ -1,6 +1,6 @@
 import pytest
 from flask import Flask, jsonify, request
-from main import app  # Import the Flask app to test
+from main import app 
 from unittest.mock import patch
 
 # You can use fixtures to set up reusable objects

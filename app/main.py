@@ -329,6 +329,45 @@ def movie_by_id(id):
         print(f"Error: {e}")
         return "Error occurred while fetching movie details", 500
 
+
+@app.route('/movies', methods=['POST'])
+def add_movie():
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+
+        # Get the data from the request
+        data = request.get_json()
+        
+        # Ensure the required fields are present
+        if not data or 'title' not in data or 'release_year' not in data:
+            return jsonify({'error': 'Missing required fields: title and release_year'}), 400
+
+        # Insert the movie details into the 'movies' table
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            INSERT INTO movies (title, release_year)
+            VALUES (%s, %s)
+        """, (data['title'], data['release_year']))
+
+        movie_id = cursor.lastrowid  # Get the id of the newly inserted movie
+        connection.commit()
+
+        # Commit the changes and close the connection
+        connection.commit()
+        connection.close()
+
+        # Return the response with the new movie ID
+        return jsonify({'message': 'Movie added successfully', 'movie_id': movie_id}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while adding the movie'}), 500
+
 @app.route('/actors', methods=['GET'])
 def actors():
     try:
