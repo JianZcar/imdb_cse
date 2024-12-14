@@ -139,13 +139,14 @@ def create_token():
 
         # Create the JWT using the application-wide SECRET_KEY
         api_key = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+        hashed_api_key = bcrypt.hashpw(api_key.encode('utf-8'), bcrypt.gensalt())
 
         # Store the JWT in the `user_keys` table
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute(
             "INSERT INTO user_keys (user_id, api_key) VALUES (%s, %s)",
-            (user_id, api_key)
+            (user_id, hashed_api_key.decode('utf-8'))
         )
         connection.commit()
         connection.close()
