@@ -342,17 +342,17 @@ def add_movie():
         data = request.get_json()
         
         # Ensure the required fields are present
-        if not data or 'title' not in data or 'release_year' not in data:
-            return jsonify({'error': 'Missing required fields: title and release_year'}), 400
+        if not data or 'title' not in data:
+            return jsonify({'error': 'Missing required fields: title'}), 400
 
         # Insert the movie details into the 'movies' table
         connection = get_db_connection()
         cursor = connection.cursor()
 
         cursor.execute("""
-            INSERT INTO movies (title, release_year)
-            VALUES (%s, %s)
-        """, (data['title'], data['release_year']))
+            INSERT INTO movies (movie_title)
+            VALUES (%s)
+        """, (data['title']))
 
         movie_id = cursor.lastrowid  # Get the id of the newly inserted movie
         connection.commit()
