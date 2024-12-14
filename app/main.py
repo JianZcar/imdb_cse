@@ -4,6 +4,7 @@ import bcrypt
 import jwt
 import os
 import datetime
+import time
 from dotenv import load_dotenv
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -165,14 +166,32 @@ def authenticate(role=0, key=None, user_id=None, hashed_password=None):
     try:
         # Case 1: Check for API key authentication
         if key:
-            # Find user by API key
-            cursor.execute("SELECT user_id FROM user_keys WHERE api_key = %s", (key,))
-            user = cursor.fetchone()
-            
-            if not user:
+            try:
+                # Decode the JWT token and verify it
+                decoded_token = jwt.decode(key, SECRET_KEY, algorithms=["HS256"])
+                
+                # Extract the user_id from the JWT payload
+                user_id = decoded_token.get('user_id')
+                
+                # Check if the 'exp' field exists and if it's expired
+                if decoded_token.get('exp') < int(time.time()):
+                    return {"message": "API key has expired", "success": False}, 401
+
+                # Find the JWT hash in the database associated with the user
+                cursor.execute("SELECT api_key FROM user_keys WHERE user_id = %s", (user_id,))
+                user_key = cursor.fetchone()
+
+                if not user_key:
+                    return {"message": "No stored API key for this user", "success": False}, 401
+                
+                # Hash the JWT key and compare with the stored hash
+                if not bcrypt.checkpw(key.encode('utf-8'), user_key['api_key'].encode('utf-8')):
+                    return {"message": "Invalid API key", "success": False}, 401
+
+            except jwt.ExpiredSignatureError:
+                return {"message": "API key has expired", "success": False}, 401
+            except jwt.InvalidTokenError:
                 return {"message": "Invalid API key", "success": False}, 401
-            
-            user_id = user['user_id']
         
         # Case 2: Check for user authentication using user_id and password
         if user_id and hashed_password:
