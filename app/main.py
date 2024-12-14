@@ -652,6 +652,10 @@ def add_genre():
 @app.route('/genres/<string:genre>')
 def genre_by_type(genre):
     try:
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+        
         connection = get_db_connection()
         cursor = connection.cursor(pymysql.cursors.DictCursor)
 
@@ -679,7 +683,41 @@ def genre_by_type(genre):
         print(f"Error: {e}")
         return "Error occurred while fetching genre details", 500
 
-@app.route('/reviews', methods=['GET'])
+
+@app.route('/genres/<string:genre>', methods=['DELETE'])
+def delete_genre(genre):
+    try:
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the genre exists in the ref_movie_genres table
+        cursor.execute("SELECT movie_genres_type FROM ref_movie_genres WHERE movie_genres_type = %s", (genre,))
+        genre_data = cursor.fetchone()
+
+        if not genre_data:
+            connection.close()
+            return jsonify({'error': 'Genre not found'}), 404
+
+        # Delete all associated movie-genre relationships
+        cursor.execute("DELETE FROM movie_genres WHERE ref_movie_genres_movie_genres_type = %s", (genre,))
+        
+        # Now delete the genre from the ref_movie_genres table
+        cursor.execute("DELETE FROM ref_movie_genres WHERE movie_genres_type = %s", (genre,))
+        
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Genre deleted successfully', 'success': True}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the genre', 'success': False}), 500
+
+@app.route('profile/reviews', methods=['GET'])
 def get_user_reviews():
     try:
         # Authenticate the user
@@ -714,7 +752,7 @@ def get_user_reviews():
         return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
 
 
-@app.route('/reviews/<int:review_id>', methods=['DELETE'])
+@app.route('profile/reviews/<int:review_id>', methods=['DELETE'])
 def delete_review(review_id):
     try:
         # Authenticate the user
@@ -755,6 +793,157 @@ def delete_review(review_id):
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while deleting the review'}), 500
 
+
+@app.route('profile/reviews/<int:review_id>', methods=['PUT'])
+def update_review(review_id):
+    try:
+        # Authenticate the user
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        user_id = auth_response['user_id']
+
+        # Get the updated data from the request
+        data = request.json
+        star_rating = data.get('star_rating')
+        review_text = data.get('review_text')
+
+        if not star_rating or not review_text:
+            return jsonify({'error': 'Star rating and review text are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the review exists and if the authenticated user created it
+        cursor.execute("""
+            SELECT user_id FROM review WHERE review_id = %s
+        """, (review_id,))
+        review = cursor.fetchone()
+
+        if not review:
+            connection.close()
+            return jsonify({'error': 'Review not found'}), 404
+        
+        if review['user_id'] != user_id:
+            connection.close()
+            return jsonify({'error': 'You can only update your own reviews'}), 403
+
+        # Update the review
+        cursor.execute("""
+            UPDATE review
+            SET star_rating = %s, review_text = %s
+            WHERE review_id = %s
+        """, (star_rating, review_text, review_id))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Review updated successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while updating the review'}), 500
+
+
+@app.route('/reviews', methods=['GET'])
+def get_all_reviews():
+    try:
+        # Authenticate the user (Admin role=1)
+        auth_response, status_code = authenticate(role=1)  # Admin role is 1
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch all reviews from the database
+        cursor.execute("""
+            SELECT r.review_id, r.movie_id, r.star_rating, r.review_text, m.movie_title, u.username
+            FROM review r
+            JOIN movies m ON r.movie_id = m.movie_id
+            JOIN users u ON r.user_id = u.user_id
+        """)
+        reviews = cursor.fetchall()
+        
+        connection.close()
+
+        if reviews:
+            return jsonify({'reviews': reviews})
+        else:
+            return jsonify({'message': 'No reviews found', 'success': False}), 404
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
+
+
+@app.route('/reviews/<int:review_id>', methods=['GET'])
+def get_specific_review(review_id):
+    try:
+        # Authenticate the user (Admin role=1)
+        auth_response, status_code = authenticate(role=1)  # Admin role is 1
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch the specific review from the database
+        cursor.execute("""
+            SELECT r.review_id, r.movie_id, r.star_rating, r.review_text, m.movie_title, u.username
+            FROM review r
+            JOIN movies m ON r.movie_id = m.movie_id
+            JOIN users u ON r.user_id = u.user_id
+            WHERE r.review_id = %s
+        """, (review_id,))
+        review = cursor.fetchone()
+        
+        connection.close()
+
+        if review:
+            return jsonify({'review': review})
+        else:
+            return jsonify({'message': 'Review not found', 'success': False}), 404
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching the review', 'success': False}), 500
+
+
+@app.route('/reviews/<int:review_id>', methods=['DELETE'])
+def delete_specific_review(review_id):
+    try:
+        # Authenticate the user (Admin role=1)
+        auth_response, status_code = authenticate(role=1)  # Admin role is 1
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the review exists
+        cursor.execute("SELECT review_id FROM review WHERE review_id = %s", (review_id,))
+        review = cursor.fetchone()
+
+        if not review:
+            connection.close()
+            return jsonify({'message': 'Review not found', 'success': False}), 404
+
+        # Delete the review from the database
+        cursor.execute("DELETE FROM review WHERE review_id = %s", (review_id,))
+        connection.commit()
+
+        connection.close()
+
+        return jsonify({'message': 'Review deleted successfully', 'success': True}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the review', 'success': False}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
