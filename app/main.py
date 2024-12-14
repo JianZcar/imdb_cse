@@ -271,7 +271,7 @@ def authenticate(role=0, strict=False):
     finally:
         connection.close()
 
-@app.route('/movies')
+@app.route('/movies', methods=['GET'])
 def movies():
     try:
         connection = get_db_connection()
@@ -284,7 +284,7 @@ def movies():
         print(f"Error: {e}")
         return "Error occurred while fetching movies", 500
 
-@app.route('/movies/<int:id>')
+@app.route('/movies/<int:id>', methods=['GET'])
 def movie_by_id(id):
     try:
         connection = get_db_connection()
@@ -329,7 +329,7 @@ def movie_by_id(id):
         print(f"Error: {e}")
         return "Error occurred while fetching movie details", 500
 
-@app.route('/actors')
+@app.route('/actors', methods=['GET'])
 def actors():
     try:
         connection = get_db_connection()
@@ -346,7 +346,7 @@ def actors():
         return "Error occurred while fetching actors", 500
 
 
-@app.route('/actors/<int:id>')
+@app.route('/actors/<int:id>', methods=['GET'])
 def actor_by_id(id):
     try:
         connection = get_db_connection()
@@ -444,6 +444,38 @@ def update_actor(id):
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while updating the actor'}), 500
+
+
+@app.route('/actors/<int:id>', methods=['DELETE'])
+def delete_actor(id):
+    try:
+        # Authenticate with role 1 (admin)
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the actor exists
+        cursor.execute("SELECT actor_id FROM actors WHERE actor_id = %s", (id,))
+        actor = cursor.fetchone()
+
+        if not actor:
+            connection.close()
+            return jsonify({'error': 'Actor not found'}), 404
+
+        # Delete the actor
+        cursor.execute("DELETE FROM actors WHERE actor_id = %s", (id,))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the actor'}), 500
 
 @app.route('/movies/<int:id>/reviews', methods=['GET'])
 def get_reviews(id):
@@ -689,69 +721,6 @@ def add_actor_to_movie(id):
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while adding actor to movie'}), 500
 
-@app.route('/actors', methods=['POST'])
-def create_actor():
-    try:
-        # Get data from request
-        data = request.json
-        first_name = data.get('first_name')
-        last_name = data.get('last_name')
-
-        if not first_name or not last_name:
-            return jsonify({'error': 'First name and last name are required'}), 400
-
-        # Connect to the database
-        connection = get_db_connection()
-        cursor = connection.cursor()
-
-        # Insert new actor into the actors table
-        cursor.execute("INSERT INTO actors (first_name, last_name) VALUES (%s, %s)", (first_name, last_name))
-        connection.commit()
-        connection.close()
-
-        return jsonify({'message': 'Actor created successfully'}), 201
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while creating the actor'}), 500
-
-# Update actor route
-@app.route('/actors/<int:id>', methods=['PUT'])
-def update_actor(id):
-    try:
-        # Get data from request
-        data = request.json
-        first_name = data.get('first_name')
-        last_name = data.get('last_name')
-
-        if not first_name or not last_name:
-            return jsonify({'error': 'First name and last name are required'}), 400
-
-        # Connect to the database
-        connection = get_db_connection()
-        cursor = connection.cursor()
-
-        # Check if the actor exists
-        cursor.execute("SELECT actor_id FROM actors WHERE actor_id = %s", (id,))
-        actor = cursor.fetchone()
-
-        if not actor:
-            connection.close()
-            return jsonify({'error': 'Actor not found'}), 404
-
-        # Update actor details
-        cursor.execute("UPDATE actors SET first_name = %s, last_name = %s WHERE actor_id = %s", (first_name, last_name, id))
-        connection.commit()
-        connection.close()
-
-        return jsonify({'message': 'Actor updated successfully'}), 200
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while updating the actor'}), 500
-        print(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while deleting the genre', 'success': False}), 500
-
 @app.route('/genres')
 def genres():
     try:
@@ -866,9 +835,12 @@ def delete_genre(genre):
 
         return jsonify({'message': 'Genre deleted successfully', 'success': True}), 200
 
-    except Exception as e:@app.route('/actors', methods=['POST'])
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching the genre', 'success': False}), 500
 
-@app.route('profile/reviews', methods=['GET'])
+
+@app.route('/profile/reviews', methods=['GET'])
 def get_user_reviews():
     try:
         # Authenticate the user
@@ -903,7 +875,7 @@ def get_user_reviews():
         return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
 
 
-@app.route('profile/reviews/<int:review_id>', methods=['DELETE'])
+@app.route('/profile/reviews/<int:review_id>', methods=['DELETE'])
 def delete_review(review_id):
     try:
         # Authenticate the user
@@ -945,7 +917,7 @@ def delete_review(review_id):
         return jsonify({'error': 'An error occurred while deleting the review'}), 500
 
 
-@app.route('profile/reviews/<int:review_id>', methods=['PUT'])
+@app.route('/profile/reviews/<int:review_id>', methods=['PUT'])
 def update_review(review_id):
     try:
         # Authenticate the user
