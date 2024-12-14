@@ -373,6 +373,74 @@ def add_movie():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while adding the movie'}), 500
 
+@app.route('/movies/<int:id>', methods=['PUT'])
+def update_movie(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Get data from request
+        data = request.json
+        title = data.get('title')
+
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the movie exists
+        cursor.execute("SELECT movie_id FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            connection.close()
+            return jsonify({'error': 'Movie not found'}), 404
+
+        # Update movie details
+        cursor.execute("UPDATE movies SET movie_title = %s WHERE movie_id = %s", (title, id))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Movie updated successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while updating the movie'}), 500
+
+
+@app.route('/movies/<int:id>', methods=['DELETE'])
+def delete_movie(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the movie exists
+        cursor.execute("SELECT movie_id FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            connection.close()
+            return jsonify({'error': 'Movie not found'}), 404
+
+        # Delete movie
+        cursor.execute("DELETE FROM movies WHERE movie_id = %s", (id,))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Movie deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the movie'}), 500
+
 @app.route('/actors', methods=['GET'])
 def actors():
     try:
