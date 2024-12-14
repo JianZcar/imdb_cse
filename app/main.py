@@ -707,17 +707,15 @@ def add_genre_to_movie(id):
         # Check if the movie exists
         cursor.execute("SELECT * FROM movies WHERE movie_id = %s", (id,))
         movie = cursor.fetchone()
-        
+
         if not movie:
-            connection.close()
             return jsonify({'error': 'Movie not found'}), 404
 
         # Check if the genre exists in ref_movie_genres
         cursor.execute("SELECT * FROM ref_movie_genres WHERE movie_genres_type = %s", (genre_type,))
         genre = cursor.fetchone()
-        
+
         if not genre:
-            connection.close()
             return jsonify({'error': 'Genre not found'}), 404
 
         # Check if the genre is already associated with the movie
@@ -727,7 +725,6 @@ def add_genre_to_movie(id):
         existing_association = cursor.fetchone()
 
         if existing_association:
-            connection.close()
             return jsonify({'message': 'Genre already associated with this movie'}), 200
 
         # Add the genre to the movie
@@ -738,8 +735,10 @@ def add_genre_to_movie(id):
 
         # Commit the transaction
         connection.commit()
-        connection.close()
 
+        # Now close the connection
+        connection.close()
+               
         return jsonify({'message': 'Genre added to the movie successfully'}), 201
 
     except Exception as e:
