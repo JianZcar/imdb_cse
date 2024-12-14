@@ -7,12 +7,9 @@ import datetime
 import time
 from dotenv import load_dotenv
 
+# Load .env
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-# Construct the path to the .env file
 dotenv_path = os.path.join(root_dir, ".env")
-
-# Load the .env file from the root directory
 load_dotenv(dotenv_path)
 
 SECRET_KEY = os.getenv('SECRET_KEY')
@@ -22,7 +19,7 @@ session={}
 app = Flask(__name__)
 
 db_config = {
-    'host': os.getenv('DB_HOST'), #The ip address of the container
+    'host': os.getenv('DB_HOST'), 
     'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
     'database': os.getenv('DB_NAME')
@@ -115,7 +112,7 @@ def create_token():
             return jsonify({'error': 'User is not signed in'}), 401
 
         # Get user details from session
-        user_id = session['userid']
+        user_id = session['user_id']
         hashed_password = session['hashed_password']
 
         # Authenticate the user using the `authenticate` function
@@ -134,7 +131,6 @@ def create_token():
         # Generate the JWT payload
         payload = {
             'user_id': user_id,
-            'role': 'admin' if auth_response.get('is_admin') else 'reviewer',
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=expiration_hours)  # User-defined expiration
         }
 
@@ -159,11 +155,18 @@ def create_token():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while creating the token'}), 500
 
-def authenticate(role=0, key=None, user_id=None, hashed_password=None, strict=False):
+def authenticate(role=0, strict=False):
     connection = get_db_connection()
     cursor = connection.cursor(pymysql.cursors.DictCursor)
-
+    user_id = session['userid'] if 'user_id' in session else None
+    hashed_password = session['hashed_password'] if 'hashed_password' in session else None
+    key = request.headers.get('Authorization')
     try:
+        if user_id and key:
+            return {
+                "message": "Conflicting authentication methods: Both user_id and API key provided.",
+                "success": False
+            }, 400
         # Case 1: Check for API key authentication
         if key:
             try:
@@ -178,15 +181,24 @@ def authenticate(role=0, key=None, user_id=None, hashed_password=None, strict=Fa
                     return {"message": "API key has expired", "success": False}, 401
 
                 # Find the JWT hash in the database associated with the user
-                cursor.execute("SELECT api_key FROM user_keys WHERE user_id = %s", (user_id,))
-                user_key = cursor.fetchone()
-
-                if not user_key:
-                    return {"message": "No stored API key for this user", "success": False}, 401
                 
-                # Hash the JWT key and compare with the stored hash
-                if not bcrypt.checkpw(key.encode('utf-8'), user_key['api_key'].encode('utf-8')):
+                # Fetch all API keys for the user
+                cursor.execute("SELECT api_key FROM user_keys WHERE user_id = %s", (user_id,))
+                user_keys = cursor.fetchall()
+
+                if not user_keys:
+                    return {"message": "No stored API keys for this user", "success": False}, 401
+
+                    # Check if the provided key matches any of the stored keys
+                key_valid = any(bcrypt.checkpw(key.encode('utf-8'), stored_key['api_key'].encode('utf-8')) for stored_key in user_keys)
+
+                if not key_valid:
+                    print(f"Provided key: {key.encode('utf-8')}")
+                    print(f"Stored keys: {[stored_key['api_key'] for stored_key in user_keys]}")
                     return {"message": "Invalid API key", "success": False}, 401
+
+                # Proceed if the key is valid
+                return {"message": "API key validated", "success": True}, 200
 
             except jwt.ExpiredSignatureError:
                 return {"message": "API key has expired", "success": False}, 401
@@ -344,6 +356,40 @@ def genres():
     except Exception as e:
         print(f"Error: {e}")
         return "Error occurred while fetching genres", 500
+
+@app.route('/genres', methods=['POST'])
+def add_genre():
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Get the new genre data from the request
+        new_genre = request.json.get('movie_genres_type')
+
+        if not new_genre:
+            return jsonify({'error': 'Genre type is required'}), 400
+
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the genre already exists
+        cursor.execute("SELECT movie_genres_type FROM ref_movie_genres WHERE movie_genres_type = %s", (new_genre,))
+        existing_genre = cursor.fetchone()
+
+        if existing_genre:
+            connection.close()
+            return jsonify({'error': 'Genre already exists'}), 400
+
+        # Insert the new genre into the database
+        cursor.execute("INSERT INTO ref_movie_genres (movie_genres_type) VALUES (%s)", (new_genre,))
+        connection.commit()
+
+        connection.close()
+        return jsonify({'message': 'Genre added successfully'}), 201
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'Error occurred while adding the genre'}), 500
 
 @app.route('/genres/<string:genre>')
 def genre_by_type(genre):
