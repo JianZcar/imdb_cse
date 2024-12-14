@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 import pymysql
 import bcrypt
+import jwt
 import os
+import datetime
 from dotenv import load_dotenv
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -13,6 +15,8 @@ dotenv_path = os.path.join(root_dir, ".env")
 load_dotenv(dotenv_path)
 
 SECRET_KEY = os.getenv('SECRET_KEY')
+
+session={}
 
 app = Flask(__name__)
 
@@ -91,10 +95,9 @@ def signin():
 
         # Verify the password (compare the hashed password)
         if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            return jsonify({'error': 'Invalid password'}), 401
-
+            return jsonify({'error': 'Invalid password'}), 401 
         session['userid'] = user['user_id']
-        session['hashed_password'] = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        session['hashed_password'] = user['password']
         session['is_admin'] = user['is_admin']
         # Return a success message
         return jsonify({'message': 'Login successful', 'user_id': user['user_id'], 'is_admin': user['is_admin']}), 200
@@ -102,7 +105,6 @@ def signin():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while signing in'}), 500
-
 
 @app.route('/create_token', methods=['POST'])
 def create_token():
@@ -117,7 +119,6 @@ def create_token():
 
         # Authenticate the user using the `authenticate` function
         auth_response, status_code = authenticate(user_id=user_id, hashed_password=hashed_password)
-
         if not auth_response['success']:
             return jsonify(auth_response), status_code
 
@@ -156,7 +157,6 @@ def create_token():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while creating the token'}), 500
 
-
 def authenticate(role=0, key=None, user_id=None, hashed_password=None):
     connection = get_db_connection()
     cursor = connection.cursor(pymysql.cursors.DictCursor)
@@ -179,8 +179,8 @@ def authenticate(role=0, key=None, user_id=None, hashed_password=None):
             cursor.execute("SELECT password, is_admin FROM users WHERE user_id = %s", (user_id,))
             user = cursor.fetchone()
 
-            if not user or not check_password_hash(user['password'], hashed_password):
-                return {"message": "Invalid credentials", "success": False}, 401
+            if not user or not (user['password'] == hashed_password):
+                return {"message": "Invalid credentials", "success": False}, 401                        
 
         # Case 3: Check if user has the required role
         cursor.execute("SELECT is_admin FROM users WHERE user_id = %s", (user_id,))
