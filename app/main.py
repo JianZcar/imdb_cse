@@ -452,6 +452,67 @@ def movie_genres(id):
         return jsonify({'error': 'An error occurred while fetching genres', 'success': False}), 500
 
 
+@app.route('/movies/<int:id>/genres', methods=['POST'])
+def add_genre_to_movie(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+        # Get the movie_genres_type from the request JSON
+        data = request.json
+        genre_type = data.get('movie_genres_type')
+
+        # Validate the input
+        if not genre_type:
+            return jsonify({'error': 'Genre type is required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the movie exists
+        cursor.execute("SELECT * FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()
+        
+        if not movie:
+            connection.close()
+            return jsonify({'error': 'Movie not found'}), 404
+
+        # Check if the genre exists in ref_movie_genres
+        cursor.execute("SELECT * FROM ref_movie_genres WHERE movie_genres_type = %s", (genre_type,))
+        genre = cursor.fetchone()
+        
+        if not genre:
+            connection.close()
+            return jsonify({'error': 'Genre not found'}), 404
+
+        # Check if the genre is already associated with the movie
+        cursor.execute("""
+            SELECT * FROM movie_genres WHERE movies_movie_id = %s AND ref_movie_genres_movie_genres_type = %s
+        """, (id, genre_type))
+        existing_association = cursor.fetchone()
+
+        if existing_association:
+            connection.close()
+            return jsonify({'message': 'Genre already associated with this movie'}), 200
+
+        # Add the genre to the movie
+        cursor.execute("""
+            INSERT INTO movie_genres (movies_movie_id, ref_movie_genres_movie_genres_type)
+            VALUES (%s, %s)
+        """, (id, genre_type))
+
+        # Commit the transaction
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Genre added to the movie successfully'}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while adding genre to movie'}), 500
+
+
 @app.route('/movies/<int:id>/actors', methods=['GET'])
 def movie_actors(id):
     try:
