@@ -186,6 +186,35 @@ def create_token():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while creating the token'}), 500
 
+@app.route('/tokens/<int:id>', methods=['DELETE'])
+def delete_token(id):
+    try:
+        # Authenticate the user using the `authenticate` function
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+        user_id = auth_response['user_id']
+
+        # Query the database to check if the token exists for the user
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT api_key FROM user_keys WHERE user_id = %s AND id = %s", (user_id, id))
+        token = cursor.fetchone()
+
+        if not token:
+            return jsonify({'message': 'Token not found for this user'}), 404
+
+        # Delete the token from the database
+        cursor.execute("DELETE FROM user_keys WHERE user_id = %s AND id = %s", (user_id, id))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Token deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the token'}), 500
+
 def authenticate(role=0, strict=False):
     connection = get_db_connection()
     cursor = connection.cursor(pymysql.cursors.DictCursor)
