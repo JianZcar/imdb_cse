@@ -159,7 +159,7 @@ def create_token():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while creating the token'}), 500
 
-def authenticate(role=0, key=None, user_id=None, hashed_password=None):
+def authenticate(role=0, key=None, user_id=None, hashed_password=None, strict=False):
     connection = get_db_connection()
     cursor = connection.cursor(pymysql.cursors.DictCursor)
 
@@ -210,7 +210,7 @@ def authenticate(role=0, key=None, user_id=None, hashed_password=None):
             return {"message": "User not found", "success": False}, 404
         
         # Ensure the user has the required role (0 for reviewer, 1 for admin)
-        if role == 0 and user['is_admin'] != 0:
+        if role == 0 and user['is_admin'] != 0 and strict:
             return {"message": "Access denied, reviewer role required", "success": False}, 403
         elif role == 1 and user['is_admin'] != 1:
             return {"message": "Access denied, admin role required", "success": False}, 403
