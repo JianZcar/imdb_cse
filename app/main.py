@@ -114,21 +114,42 @@ def signout():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while signing out'}), 500
 
-@app.route('/create_token', methods=['POST'])
-def create_token():
+@app.route('/tokens', methods=['GET'])
+def get_tokens():
     try:
-        # Check if the user is signed in
-        if 'userid' not in session or 'hashed_password' not in session:
-            return jsonify({'error': 'User is not signed in'}), 401
-
-        # Get user details from session
-        user_id = session['user_id']
-        hashed_password = session['hashed_password']
-
         # Authenticate the user using the `authenticate` function
-        auth_response, status_code = authenticate(user_id=user_id, hashed_password=hashed_password)
+        auth_response, status_code = authenticate(role=0)
         if not auth_response['success']:
             return jsonify(auth_response), status_code
+        user_id = auth_response['user_id']
+
+        # Query the database for the user's API keys
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT api_key FROM user_keys WHERE user_id = %s", (user_id,))
+        tokens = cursor.fetchall()
+        connection.close()
+
+        # Check if any tokens exist
+        if not tokens:
+            return jsonify({'message': 'No tokens found for this user'}), 404
+
+        # Return the list of tokens (decoded)
+        token_list = [token[0] for token in tokens]  # Assuming the token is stored in the first column
+        return jsonify({'tokens': token_list}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while retrieving the tokens'}), 500
+
+@app.route('/tokens', methods=['POST'])
+def create_token():
+    try:
+        # Authenticate the user using the `authenticate` function
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+        user_id = auth_response['user_id']
 
         # Get the requested expiration time from the POST request body
         data = request.get_json()
@@ -668,6 +689,69 @@ def add_actor_to_movie(id):
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while adding actor to movie'}), 500
 
+@app.route('/actors', methods=['POST'])
+def create_actor():
+    try:
+        # Get data from request
+        data = request.json
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+
+        if not first_name or not last_name:
+            return jsonify({'error': 'First name and last name are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Insert new actor into the actors table
+        cursor.execute("INSERT INTO actors (first_name, last_name) VALUES (%s, %s)", (first_name, last_name))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor created successfully'}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while creating the actor'}), 500
+
+# Update actor route
+@app.route('/actors/<int:id>', methods=['PUT'])
+def update_actor(id):
+    try:
+        # Get data from request
+        data = request.json
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+
+        if not first_name or not last_name:
+            return jsonify({'error': 'First name and last name are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the actor exists
+        cursor.execute("SELECT actor_id FROM actors WHERE actor_id = %s", (id,))
+        actor = cursor.fetchone()
+
+        if not actor:
+            connection.close()
+            return jsonify({'error': 'Actor not found'}), 404
+
+        # Update actor details
+        cursor.execute("UPDATE actors SET first_name = %s, last_name = %s WHERE actor_id = %s", (first_name, last_name, id))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor updated successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while updating the actor'}), 500
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the genre', 'success': False}), 500
+
 @app.route('/genres')
 def genres():
     try:
@@ -782,9 +866,7 @@ def delete_genre(genre):
 
         return jsonify({'message': 'Genre deleted successfully', 'success': True}), 200
 
-    except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'error': 'An error occurred while deleting the genre', 'success': False}), 500
+    except Exception as e:@app.route('/actors', methods=['POST'])
 
 @app.route('profile/reviews', methods=['GET'])
 def get_user_reviews():
