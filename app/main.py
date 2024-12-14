@@ -94,7 +94,7 @@ def signin():
         # Verify the password (compare the hashed password)
         if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
             return jsonify({'error': 'Invalid password'}), 401 
-        session['userid'] = user['user_id']
+        session['user_id'] = user['user_id']
         session['hashed_password'] = user['password']
         session['is_admin'] = user['is_admin']
         # Return a success message
@@ -158,7 +158,7 @@ def create_token():
 def authenticate(role=0, strict=False):
     connection = get_db_connection()
     cursor = connection.cursor(pymysql.cursors.DictCursor)
-    user_id = session['userid'] if 'user_id' in session else None
+    user_id = session['user_id'] if 'user_id' in session else None
     hashed_password = session['hashed_password'] if 'hashed_password' in session else None
     key = request.headers.get('Authorization')
     try:
@@ -198,7 +198,7 @@ def authenticate(role=0, strict=False):
                     return {"message": "Invalid API key", "success": False}, 401
 
                 # Proceed if the key is valid
-                return {"message": "API key validated", "success": True}, 200
+                return {"message": "API key validated", "success": True, "user_id": user_id}, 200
 
             except jwt.ExpiredSignatureError:
                 return {"message": "API key has expired", "success": False}, 401
@@ -207,6 +207,7 @@ def authenticate(role=0, strict=False):
         
         # Case 2: Check for user authentication using user_id and password
         if user_id and hashed_password:
+            print(user_id)
             # Find user by user_id and check if password is correct
             cursor.execute("SELECT password, is_admin FROM users WHERE user_id = %s", (user_id,))
             user = cursor.fetchone()
@@ -340,6 +341,53 @@ def actor_by_id(id):
     except Exception as e:
         print(f"Error: {e}")
         return "Error occurred while fetching actor details", 500
+
+
+
+@app.route('/movies/<int:id>/reviews', methods=['POST'])
+def add_review(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        user_id = auth_response['user_id']
+        # Parse JSON payload
+        data = request.get_json()
+
+        # Validate required fields
+        if not data or 'star_rating' not in data or 'review_text' not in data:
+            return jsonify({"message": "Missing required fields: 'star_rating' and 'review_text'", "success": False}), 400
+
+        # Extract and validate star_rating
+        star_rating = data['star_rating']
+        if not (0.0 <= star_rating <= 10.0):  # Assuming a 0-10 star rating scale
+            return jsonify({"message": "Invalid 'star_rating'. It must be between 0.0 and 10.0", "success": False}), 400
+
+        review_text = data['review_text']
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the movie exists
+        cursor.execute("SELECT movie_id FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()
+        if not movie:
+            return jsonify({"message": f"Movie with ID {id} not found", "success": False}), 404
+
+        # Insert the review
+        cursor.execute(
+            "INSERT INTO review (movie_id, user_id, star_rating, review_text) VALUES (%s, %s, %s, %s)",
+            (id, user_id, star_rating, review_text)
+        )
+        connection.commit()
+
+        return jsonify({"message": "Review added successfully", "success": True}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"message": "An error occurred while adding the review", "success": False}), 500
 
 @app.route('/genres')
 def genres():
