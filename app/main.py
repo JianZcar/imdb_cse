@@ -679,6 +679,39 @@ def genre_by_type(genre):
         print(f"Error: {e}")
         return "Error occurred while fetching genre details", 500
 
+@app.route('/reviews', methods=['GET'])
+def get_user_reviews():
+    try:
+        # Authenticate the user
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        user_id = auth_response['user_id']
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch reviews created by the authenticated user
+        cursor.execute("""
+            SELECT r.review_id, r.movie_id, r.star_rating, r.review_text, m.movie_title
+            FROM review r
+            JOIN movies m ON r.movie_id = m.movie_id
+            WHERE r.user_id = %s
+        """, (user_id,))
+        reviews = cursor.fetchall()
+        
+        connection.close()
+
+        if reviews:
+            return jsonify({'reviews': reviews})
+        else:
+            return jsonify({'message': 'No reviews found for this user', 'success': False}), 404
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
 
 
 if __name__ == '__main__':
