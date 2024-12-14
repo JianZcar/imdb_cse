@@ -477,6 +477,67 @@ def movie_actors(id):
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while fetching actors', 'success': False}), 500
 
+
+@app.route('/movies/<int:id>/actors', methods=['POST'])
+def add_actor_to_movie(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+        # Get the actor_id from the request JSON
+        data = request.json
+        actor_id = data.get('actor_id')
+
+        # Validate the input
+        if not actor_id:
+            return jsonify({'error': 'Actor ID is required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the movie exists
+        cursor.execute("SELECT * FROM movies WHERE movie_id = %s", (id,))
+        movie = cursor.fetchone()
+        
+        if not movie:
+            connection.close()
+            return jsonify({'error': 'Movie not found'}), 404
+
+        # Check if the actor exists
+        cursor.execute("SELECT * FROM actors WHERE actor_id = %s", (actor_id,))
+        actor = cursor.fetchone()
+        
+        if not actor:
+            connection.close()
+            return jsonify({'error': 'Actor not found'}), 404
+
+        # Check if the actor is already associated with the movie
+        cursor.execute("""
+            SELECT * FROM movie_actors WHERE movies_movie_id = %s AND actors_actor_id = %s
+        """, (id, actor_id))
+        existing_association = cursor.fetchone()
+
+        if existing_association:
+            connection.close()
+            return jsonify({'message': 'Actor already associated with this movie'}), 200
+
+        # Add the actor to the movie
+        cursor.execute("""
+            INSERT INTO movie_actors (movies_movie_id, actors_actor_id)
+            VALUES (%s, %s)
+        """, (id, actor_id))
+
+        # Commit the transaction
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor added to the movie successfully'}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while adding actor to movie'}), 500
+
 @app.route('/genres')
 def genres():
     try:
