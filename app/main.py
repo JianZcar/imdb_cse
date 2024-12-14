@@ -714,5 +714,47 @@ def get_user_reviews():
         return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
 
 
+@app.route('/reviews/<int:review_id>', methods=['DELETE'])
+def delete_review(review_id):
+    try:
+        # Authenticate the user
+        auth_response, status_code = authenticate(role=0)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        user_id = auth_response['user_id']
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Check if the review exists and if the authenticated user created it
+        cursor.execute("""
+            SELECT user_id FROM review WHERE review_id = %s
+        """, (review_id,))
+        review = cursor.fetchone()
+
+        if not review:
+            connection.close()
+            return jsonify({'error': 'Review not found'}), 404
+        
+        if review['user_id'] != user_id:
+            connection.close()
+            return jsonify({'error': 'You can only delete your own reviews'}), 403
+
+        # Delete the review
+        cursor.execute("""
+            DELETE FROM review WHERE review_id = %s
+        """, (review_id,))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Review deleted successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while deleting the review'}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
