@@ -279,6 +279,11 @@ def movies():
         cursor.execute("SELECT movie_id, movie_title FROM movies")
         movies = cursor.fetchall()
         connection.close()
+
+        # If no movies are found, return a 404 response
+        if not movies:
+            return jsonify({'error': 'No movies found'}), 404
+
         return jsonify({'movies': movies})
     except Exception as e:
         print(f"Error: {e}")
