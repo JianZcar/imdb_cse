@@ -355,6 +355,75 @@ def actor_by_id(id):
         print(f"Error: {e}")
         return "Error occurred while fetching actor details", 500
 
+@app.route('/actors', methods=['POST'])
+def create_actor():
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Get data from request
+        data = request.json
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+
+        if not first_name or not last_name:
+            return jsonify({'error': 'First name and last name are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Insert new actor into the actors table
+        cursor.execute("INSERT INTO actors (first_name, last_name) VALUES (%s, %s)", (first_name, last_name))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor created successfully'}), 201
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while creating the actor'}), 500
+
+# Update actor route
+@app.route('/actors/<int:id>', methods=['PUT'])
+def update_actor(id):
+    try:
+        auth_response, status_code = authenticate(role=1)
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Get data from request
+        data = request.json
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+
+        if not first_name or not last_name:
+            return jsonify({'error': 'First name and last name are required'}), 400
+
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Check if the actor exists
+        cursor.execute("SELECT actor_id FROM actors WHERE actor_id = %s", (id,))
+        actor = cursor.fetchone()
+
+        if not actor:
+            connection.close()
+            return jsonify({'error': 'Actor not found'}), 404
+
+        # Update actor details
+        cursor.execute("UPDATE actors SET first_name = %s, last_name = %s WHERE actor_id = %s", (first_name, last_name, id))
+        connection.commit()
+        connection.close()
+
+        return jsonify({'message': 'Actor updated successfully'}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while updating the actor'}), 500
+
 @app.route('/movies/<int:id>/reviews', methods=['GET'])
 def get_reviews(id):
     try:
