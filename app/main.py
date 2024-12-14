@@ -1,14 +1,26 @@
 from flask import Flask, render_template, request, jsonify
 import pymysql
 import bcrypt
+import os
+from dotenv import load_dotenv
+
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Construct the path to the .env file
+dotenv_path = os.path.join(root_dir, ".env")
+
+# Load the .env file from the root directory
+load_dotenv(dotenv_path)
+
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 app = Flask(__name__)
 
 db_config = {
-    'host': '10.89.0.2', #The ip address of the container
-    'user': 'root',
-    'password': '',
-    'database': 'imdb'
+    'host': os.getenv('DB_HOST'), #The ip address of the container
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME')
 }
 
 def get_db_connection():
@@ -83,12 +95,66 @@ def signin():
 
         session['userid'] = user['user_id']
         session['hashed_password'] = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        session['is_admin'] = user['is_admin']
         # Return a success message
         return jsonify({'message': 'Login successful', 'user_id': user['user_id'], 'is_admin': user['is_admin']}), 200
 
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while signing in'}), 500
+
+
+@app.route('/create_token', methods=['POST'])
+def create_token():
+    try:
+        # Check if the user is signed in
+        if 'userid' not in session or 'hashed_password' not in session:
+            return jsonify({'error': 'User is not signed in'}), 401
+
+        # Get user details from session
+        user_id = session['userid']
+        hashed_password = session['hashed_password']
+
+        # Authenticate the user using the `authenticate` function
+        auth_response, status_code = authenticate(user_id=user_id, hashed_password=hashed_password)
+
+        if not auth_response['success']:
+            return jsonify(auth_response), status_code
+
+        # Get the requested expiration time from the POST request body
+        data = request.get_json()
+        expiration_hours = data.get('expiration_hours', 2)  # Default to 2 hours if not provided
+
+        # Validate the expiration time
+        if not isinstance(expiration_hours, (int, float)) or expiration_hours <= 0:
+            return jsonify({'error': 'Invalid expiration time. Must be a positive number.'}), 400
+
+        # Generate the JWT payload
+        payload = {
+            'user_id': user_id,
+            'role': 'admin' if auth_response.get('is_admin') else 'reviewer',
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=expiration_hours)  # User-defined expiration
+        }
+
+        # Create the JWT using the application-wide SECRET_KEY
+        api_key = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+
+        # Store the JWT in the `user_keys` table
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO user_keys (user_id, api_key) VALUES (%s, %s)",
+            (user_id, api_key)
+        )
+        connection.commit()
+        connection.close()
+
+        # Return the token
+        return jsonify({'message': 'JWT created successfully', 'api_key': api_key}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while creating the token'}), 500
 
 
 def authenticate(role=0, key=None, user_id=None, hashed_password=None):
