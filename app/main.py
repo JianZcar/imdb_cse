@@ -104,6 +104,16 @@ def signin():
         print(f"Error: {e}")
         return jsonify({'error': 'An error occurred while signing in'}), 500
 
+@app.route('/signout', methods=['POST'])
+def signout():
+    try:
+        # Clear the session
+        session.clear()
+        return jsonify({'message': 'Successfully signed out'}), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while signing out'}), 500
+
 @app.route('/create_token', methods=['POST'])
 def create_token():
     try:
@@ -206,7 +216,7 @@ def authenticate(role=0, strict=False):
                 return {"message": "Invalid API key", "success": False}, 401
         
         # Case 2: Check for user authentication using user_id and password
-        if user_id and hashed_password:
+        elif user_id and hashed_password:
             print(user_id)
             # Find user by user_id and check if password is correct
             cursor.execute("SELECT password, is_admin FROM users WHERE user_id = %s", (user_id,))
@@ -214,6 +224,9 @@ def authenticate(role=0, strict=False):
 
             if not user or not (user['password'] == hashed_password):
                 return {"message": "Invalid credentials", "success": False}, 401                        
+        else:
+            # Handle missing session or token
+            return {"message": "Authentication required. Please sign in or provide a valid API token.", "success": False}, 401
 
         # Case 3: Check if user has the required role
         cursor.execute("SELECT is_admin FROM users WHERE user_id = %s", (user_id,))
@@ -342,7 +355,31 @@ def actor_by_id(id):
         print(f"Error: {e}")
         return "Error occurred while fetching actor details", 500
 
+@app.route('/movies/<int:id>/reviews', methods=['GET'])
+def get_reviews(id):
+    try:
+        # Connect to the database
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
 
+        # Fetch reviews for the specified movie
+        cursor.execute("""
+            SELECT review_id, star_rating, review_text 
+            FROM review 
+            WHERE movie_id = %s
+        """, (id,))
+        reviews = cursor.fetchall()
+        connection.close()
+
+        if not reviews:
+            return jsonify({'message': 'No reviews found for this movie', 'success': False}), 404
+
+        # Return the reviews
+        return jsonify({'message': 'Reviews retrieved successfully', 'success': True, 'reviews': reviews}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching reviews', 'success': False}), 500
 
 @app.route('/movies/<int:id>/reviews', methods=['POST'])
 def add_review(id):
@@ -388,6 +425,57 @@ def add_review(id):
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"message": "An error occurred while adding the review", "success": False}), 500
+
+@app.route('/movies/<int:id>/genres', methods=['GET'])
+def movie_genres(id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch genres for the specified movie
+        cursor.execute("""
+            SELECT rg.movie_genres_type
+            FROM movie_genres mg
+            JOIN ref_movie_genres rg ON mg.ref_movie_genres_movie_genres_type = rg.movie_genres_type
+            WHERE mg.movies_movie_id = %s
+        """, (id,))
+        genres = [genre['movie_genres_type'] for genre in cursor.fetchall()]
+        
+        connection.close()
+
+        if genres:
+            return jsonify({'genres': genres})
+        else:
+            return jsonify({'message': 'No genres found for this movie', 'success': False}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching genres', 'success': False}), 500
+
+
+@app.route('/movies/<int:id>/actors', methods=['GET'])
+def movie_actors(id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+        # Fetch actors for the specified movie
+        cursor.execute("""
+            SELECT a.actor_id, a.first_name, a.last_name
+            FROM movie_actors ma
+            JOIN actors a ON ma.actors_actor_id = a.actor_id
+            WHERE ma.movies_movie_id = %s
+        """, (id,))
+        actors = cursor.fetchall()
+        
+        connection.close()
+
+        if actors:
+            return jsonify({'actors': actors})
+        else:
+            return jsonify({'message': 'No actors found for this movie', 'success': False}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'An error occurred while fetching actors', 'success': False}), 500
 
 @app.route('/genres')
 def genres():
