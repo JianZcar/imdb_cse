@@ -945,7 +945,7 @@ def genre_by_type(genre):
 @app.route('/genres/<string:genre>', methods=['DELETE'])
 def delete_genre(genre):
     try:
-        auth_response, status_code = authenticate(role=0)
+        auth_response, status_code = authenticate(role=1)
         if not auth_response['success']:
             return jsonify(auth_response), status_code
 
