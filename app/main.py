@@ -914,10 +914,6 @@ def add_genre():
 @app.route('/genres/<string:genre>')
 def genre_by_type(genre):
     try:
-        auth_response, status_code = authenticate(role=0)
-        if not auth_response['success']:
-            return jsonify(auth_response), status_code
-        
         connection = get_db_connection()
         cursor = connection.cursor(pymysql.cursors.DictCursor)
 
