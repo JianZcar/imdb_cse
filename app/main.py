@@ -647,7 +647,7 @@ def get_reviews(id):
 @app.route('/movies/<int:id>/reviews', methods=['POST'])
 def add_review(id):
     try:
-        auth_response, status_code = authenticate(role=1)
+        auth_response, status_code = authenticate(role=0)
         if not auth_response['success']:
             return jsonify(auth_response), status_code
 
