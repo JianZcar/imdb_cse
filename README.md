@@ -1,11 +1,11 @@
 # IMDB CSE
 
 ## Description
-IMDB CSE is a web application built with Flask that provides various functionalities for managing and retrieving information related to movies, users, and reviews. The application uses a MySQL database to store data and implements JWT-based authentication.
+IMDB CSE is a web application built with Flask that provides various functionalities for managing and retrieving information related to movies, users, and reviews. The application uses a MySQL database for data storage and JWT for authentication.
 
 ## Features
 - User Authentication: Signup, Signin, Signout
-- JWT Token Management: Create and retrieve API tokens
+- JWT Token Management: Create, retrieve and delete API tokens
 - Movie Management: Add, update, delete, and retrieve movies
 - Review Management: Add, update, delete, and retrieve reviews
 - Actor Management: Add, update, delete, and retrieve actors
@@ -50,6 +50,7 @@ IMDB CSE is a web application built with Flask that provides various functionali
 - **JWT Token Management**
   - `GET /tokens`: Retrieve API tokens for the current user
   - `POST /tokens`: Create a new API token
+  - `DELETE /tokens/<int:id>`: Delete a specific API token
 
 - **Movie Management**
   - `GET /movies`: Retrieve all movies
