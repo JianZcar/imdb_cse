@@ -7,7 +7,6 @@ def client():
     with app.test_client() as client:
         yield client
 
-# Test for successfully adding an actor to a movie
 @patch('main.get_db_connection')  # Mock the database connection
 @patch('main.authenticate')  # Mock the authentication
 def test_add_actor_to_movie_success(mock_auth, mock_db, client):
@@ -18,10 +17,11 @@ def test_add_actor_to_movie_success(mock_auth, mock_db, client):
     mock_cursor = MagicMock()
     mock_db.return_value.cursor.return_value = mock_cursor
 
-    # Simulate movie and actor existence
+    # Simulate movie, actor, and no existing association
     mock_cursor.fetchone.side_effect = [
         {'movie_id': 1},  # Movie exists
-        {'actor_id': 1, 'first_name': 'Robert', 'last_name': 'Downey Jr.'}  # Actor exists
+        {'actor_id': 1, 'first_name': 'Robert', 'last_name': 'Downey Jr.'},  # Actor exists
+        None  # No existing association
     ]
 
     # Simulate the POST request to add actor to the movie
