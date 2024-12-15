@@ -869,13 +869,13 @@ def genres():
 
         # Fetch all genres
         cursor.execute("SELECT movie_genres_type FROM ref_movie_genres")
-        genres = cursor.fetchall()
+        genres = [row['movie_genres_type'] for row in cursor.fetchall()]
 
         connection.close()
         return jsonify({'genres': genres})
     except Exception as e:
         print(f"Error: {e}")
-        return "Error occurred while fetching genres", 500
+        return jsonify({'error': 'Error occurred while fetching genres'}), 500
 
 @app.route('/genres', methods=['POST'])
 def add_genre():
